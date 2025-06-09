@@ -1,10 +1,13 @@
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Coffee, Utensils, Moon, ChevronRight } from "lucide-react";
+import { Coffee, Utensils, Moon, ChevronRight, Check, Plus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import type { NutritionItem, DailyMeals } from "@/lib/nutrition-data";
 import type { MealBudgets } from "@/lib/calculations";
 

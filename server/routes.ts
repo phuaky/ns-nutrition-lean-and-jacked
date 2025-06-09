@@ -42,13 +42,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           user = await storage.createDiscordUser({
             discordId: profile.id,
             discordUsername: profile.username,
-            avatar: profile.avatar
+            avatar: profile.avatar ? profile.avatar : undefined
           });
         }
         
         return done(null, user);
       } catch (error) {
-        return done(error, null);
+        return done(error, undefined);
       }
     }));
   }
@@ -92,7 +92,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get user profile
+  // Get current user's profile
+  app.get("/api/profile", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    
+    try {
+      const user = req.user as any;
+      const profile = await storage.getUserProfile(user.id);
+      
+      if (!profile) {
+        return res.status(404).json({ message: "Profile not found" });
+      }
+      
+      res.json(profile);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get profile" });
+    }
+  });
+
+  // Get user profile by ID (for backward compatibility)
   app.get("/api/profile/:userId", async (req, res) => {
     try {
       const userId = parseInt(req.params.userId);
@@ -110,17 +130,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Create or update user profile
   app.post("/api/profile", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    
     try {
-      const profileData = insertUserProfileSchema.parse(req.body);
+      const user = req.user as any;
+      const profileData = { ...req.body, userId: user.id };
+      const validatedData = insertUserProfileSchema.parse(profileData);
       
       // Check if profile exists
-      const existingProfile = await storage.getUserProfile(profileData.userId);
+      const existingProfile = await storage.getUserProfile(user.id);
       
       let profile;
       if (existingProfile) {
-        profile = await storage.updateUserProfile(profileData.userId, profileData);
+        profile = await storage.updateUserProfile(user.id, validatedData);
       } else {
-        profile = await storage.createUserProfile(profileData);
+        profile = await storage.createUserProfile(validatedData);
       }
       
       res.json(profile);
@@ -129,7 +155,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get daily intake for a specific date
+  // Get current user's daily intake for a specific date
+  app.get("/api/intake/:date", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    
+    try {
+      const user = req.user as any;
+      const date = req.params.date;
+      
+      const intake = await storage.getDailyIntake(user.id, date);
+      res.json(intake);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get daily intake" });
+    }
+  });
+
+  // Get daily intake for a specific user and date (backward compatibility)
   app.get("/api/intake/:userId/:date", async (req, res) => {
     try {
       const userId = parseInt(req.params.userId);
@@ -144,9 +187,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Add meal to daily intake
   app.post("/api/intake", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    
     try {
-      const intakeData = insertDailyIntakeSchema.parse(req.body);
-      const intake = await storage.createDailyIntake(intakeData);
+      const user = req.user as any;
+      const intakeData = { ...req.body, userId: user.id };
+      const validatedData = insertDailyIntakeSchema.parse(intakeData);
+      const intake = await storage.createDailyIntake(validatedData);
       res.json(intake);
     } catch (error) {
       res.status(400).json({ message: "Invalid intake data" });
