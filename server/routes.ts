@@ -32,7 +32,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     passport.use(new DiscordStrategy({
       clientID: process.env.DISCORD_CLIENT_ID,
       clientSecret: process.env.DISCORD_CLIENT_SECRET,
-      callbackURL: "https://b342f753-b76d-476f-a441-66cb5e6a37f6-00-3msrsyapjesxl.worf.replit.dev/auth/discord/callback",
+      callbackURL: "https://workspace.b342f753-b76d-476f-a441-66cb5e6a37f6-00-3msrsyapjesxl.worf.replit.dev/auth/discord/callback",
       scope: ['identify']
     }, async (accessToken, refreshToken, profile, done) => {
       try {
