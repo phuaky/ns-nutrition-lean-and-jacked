@@ -67,13 +67,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Authentication routes
-  app.get("/auth/discord", passport.authenticate("discord"));
-  app.get("/auth/discord/callback", 
-    passport.authenticate("discord", { failureRedirect: "/" }),
-    (req, res) => {
-      res.redirect("/");
-    }
-  );
+  if (process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET) {
+    app.get("/auth/discord", passport.authenticate("discord"));
+    app.get("/auth/discord/callback", 
+      passport.authenticate("discord", { failureRedirect: "/" }),
+      (req, res) => {
+        res.redirect("/");
+      }
+    );
+  } else {
+    app.get("/auth/discord", (req, res) => {
+      res.status(503).json({ message: "Discord authentication not configured" });
+    });
+  }
 
   app.post("/auth/logout", (req, res) => {
     req.logout((err) => {
