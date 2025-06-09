@@ -55,7 +55,14 @@ export class MemStorage implements IStorage {
   async createUserProfile(insertProfile: InsertUserProfile): Promise<UserProfile> {
     const id = this.currentProfileId++;
     const profile: UserProfile = { 
-      ...insertProfile, 
+      userId: insertProfile.userId,
+      weight: insertProfile.weight,
+      bodyFat: insertProfile.bodyFat,
+      targetWeight: insertProfile.targetWeight,
+      inbodyScore: insertProfile.inbodyScore,
+      bmr: insertProfile.bmr,
+      activityLevel: insertProfile.activityLevel ?? 1.375,
+      timeline: insertProfile.timeline ?? 90,
       id, 
       createdAt: new Date().toISOString() 
     };
