@@ -1,9 +1,97 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import session from "express-session";
+import passport from "passport";
+import { Strategy as DiscordStrategy } from "passport-discord";
+import MemoryStore from "memorystore";
 import { storage } from "./storage";
 import { insertUserProfileSchema, insertDailyIntakeSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Session configuration
+  const MemoryStoreSession = MemoryStore(session);
+  app.use(session({
+    secret: process.env.SESSION_SECRET || 'nutrition-tracker-secret-key',
+    resave: false,
+    saveUninitialized: false,
+    store: new MemoryStoreSession({
+      checkPeriod: 86400000 // prune expired entries every 24h
+    }),
+    cookie: {
+      secure: false, // Set to true in production with HTTPS
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+  }));
+
+  // Passport configuration
+  app.use(passport.initialize());
+  app.use(passport.session());
+
+  // Discord OAuth strategy
+  if (process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET) {
+    passport.use(new DiscordStrategy({
+      clientID: process.env.DISCORD_CLIENT_ID,
+      clientSecret: process.env.DISCORD_CLIENT_SECRET,
+      callbackURL: process.env.DISCORD_CALLBACK_URL || "/auth/discord/callback",
+      scope: ['identify']
+    }, async (accessToken, refreshToken, profile, done) => {
+      try {
+        let user = await storage.getUserByDiscordId(profile.id);
+        
+        if (!user) {
+          user = await storage.createDiscordUser({
+            discordId: profile.id,
+            discordUsername: profile.username,
+            avatar: profile.avatar
+          });
+        }
+        
+        return done(null, user);
+      } catch (error) {
+        return done(error, null);
+      }
+    }));
+  }
+
+  passport.serializeUser((user: any, done) => {
+    done(null, user.id);
+  });
+
+  passport.deserializeUser(async (id: number, done) => {
+    try {
+      const user = await storage.getUser(id);
+      done(null, user);
+    } catch (error) {
+      done(error, null);
+    }
+  });
+
+  // Authentication routes
+  app.get("/auth/discord", passport.authenticate("discord"));
+  app.get("/auth/discord/callback", 
+    passport.authenticate("discord", { failureRedirect: "/" }),
+    (req, res) => {
+      res.redirect("/");
+    }
+  );
+
+  app.post("/auth/logout", (req, res) => {
+    req.logout((err) => {
+      if (err) {
+        return res.status(500).json({ message: "Logout failed" });
+      }
+      res.json({ message: "Logged out successfully" });
+    });
+  });
+
+  app.get("/auth/user", (req, res) => {
+    if (req.isAuthenticated()) {
+      res.json(req.user);
+    } else {
+      res.status(401).json({ message: "Not authenticated" });
+    }
+  });
+
   // Get user profile
   app.get("/api/profile/:userId", async (req, res) => {
     try {

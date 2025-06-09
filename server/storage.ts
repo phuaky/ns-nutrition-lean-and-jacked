@@ -4,6 +4,8 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  createDiscordUser(discordData: { discordId: string; discordUsername: string; avatar?: string }): Promise<User>;
+  getUserByDiscordId(discordId: string): Promise<User | undefined>;
   getUserProfile(userId: number): Promise<UserProfile | undefined>;
   createUserProfile(profile: InsertUserProfile): Promise<UserProfile>;
   updateUserProfile(userId: number, profile: Partial<InsertUserProfile>): Promise<UserProfile | undefined>;
@@ -41,9 +43,40 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.currentUserId++;
-    const user: User = { ...insertUser, id };
+    const user: User = { 
+      id,
+      username: insertUser.username,
+      password: insertUser.password || null,
+      discordId: null,
+      discordUsername: null,
+      avatar: null
+    };
     this.users.set(id, user);
     return user;
+  }
+
+  async createDiscordUser(discordData: {
+    discordId: string;
+    discordUsername: string;
+    avatar?: string;
+  }): Promise<User> {
+    const id = this.currentUserId++;
+    const user: User = {
+      id,
+      username: discordData.discordUsername,
+      password: null,
+      discordId: discordData.discordId,
+      discordUsername: discordData.discordUsername,
+      avatar: discordData.avatar || null,
+    };
+    this.users.set(id, user);
+    return user;
+  }
+
+  async getUserByDiscordId(discordId: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.discordId === discordId,
+    );
   }
 
   async getUserProfile(userId: number): Promise<UserProfile | undefined> {

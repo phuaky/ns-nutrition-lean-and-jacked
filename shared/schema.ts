@@ -5,7 +5,10 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+  password: text("password"),
+  discordId: text("discord_id").unique(),
+  discordUsername: text("discord_username"),
+  avatar: text("avatar"),
 });
 
 export const userProfiles = pgTable("user_profiles", {
@@ -37,6 +40,14 @@ export const dailyIntake = pgTable("daily_intake", {
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
+}).extend({
+  password: z.string().optional(),
+});
+
+export const insertDiscordUserSchema = createInsertSchema(users).pick({
+  discordId: true,
+  discordUsername: true,
+  avatar: true,
 });
 
 export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({
