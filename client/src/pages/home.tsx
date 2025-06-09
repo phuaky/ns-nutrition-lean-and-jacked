@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -7,168 +6,124 @@ import { QuickStats } from "@/components/quick-stats";
 import { ProfileSetup } from "@/components/profile-setup";
 import { MealPlanning } from "@/components/meal-planning";
 import { ProgressTracking } from "@/components/progress-tracking";
-import { WeeklyCalendar } from "@/components/weekly-calendar";
 import { BottomNavigation } from "@/components/bottom-navigation";
-import { calculateDailyCalories, type UserData } from "@/lib/calculations";
-import { getDayName, getMealRecommendations, type NutritionItem } from "@/lib/nutrition-data";
-import { apiRequest } from "@/lib/queryClient";
-
-// Mock user ID for demonstration - in a real app this would come from authentication
-const MOCK_USER_ID = 1;
+import { 
+  calculateCalories, 
+  calculateMealBudgets,
+  type InBodyData,
+  type CalorieCalculation,
+  type MealBudgets 
+} from "@/lib/calculations";
+import { weeklyMeals, cafeItems } from "@/lib/nutrition-data";
 
 export default function Home() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  
   const [activeTab, setActiveTab] = useState('home');
   const [profileExpanded, setProfileExpanded] = useState(true);
-  const [currentDay, setCurrentDay] = useState(getDayName());
   
-  const [userData, setUserData] = useState<UserData>({
-    weight: 0,
-    bodyFat: 0,
-    targetWeight: 0,
-    inbodyScore: 0,
-    bmr: 0,
-    activityLevel: 1.375,
-    timeline: 90
-  });
-
-  const [calorieDistribution, setCalorieDistribution] = useState({
-    dailyCalories: 0,
-    breakfastCalories: 0,
-    lunchCalories: 0,
-    dinnerCalories: 0,
-    remainingCalories: 0
-  });
-
-  const [lunchOptions, setLunchOptions] = useState<NutritionItem[]>([]);
-  const [dinnerOptions, setDinnerOptions] = useState<NutritionItem[]>([]);
-
-  // Load user profile
-  const { data: profile, isLoading: profileLoading } = useQuery({
-    queryKey: ['/api/profile', MOCK_USER_ID],
-    enabled: true
-  });
-
-  // Load today's intake
-  const today = new Date().toISOString().split('T')[0];
-  const { data: dailyIntake, isLoading: intakeLoading } = useQuery({
-    queryKey: ['/api/intake', MOCK_USER_ID, today],
-    enabled: true
-  });
-
-  // Save profile mutation
-  const saveProfileMutation = useMutation({
-    mutationFn: async (profileData: any) => {
-      return apiRequest('POST', '/api/profile', {
-        userId: MOCK_USER_ID,
-        ...profileData
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/profile', MOCK_USER_ID] });
-      toast({
-        title: "Profile saved",
-        description: "Your profile has been updated successfully."
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to save profile. Please try again.",
-        variant: "destructive"
-      });
-    }
-  });
-
-  // Add meal mutation
-  const addMealMutation = useMutation({
-    mutationFn: async (mealData: any) => {
-      return apiRequest('POST', '/api/intake', mealData);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/intake', MOCK_USER_ID, today] });
-      toast({
-        title: "Meal added",
-        description: "Your meal has been added to today's intake."
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to add meal. Please try again.",
-        variant: "destructive"
-      });
-    }
-  });
-
-  // Load profile data on mount
-  useEffect(() => {
-    if (profile) {
-      setUserData({
-        weight: profile.weight,
-        bodyFat: profile.bodyFat,
-        targetWeight: profile.targetWeight,
-        inbodyScore: profile.inbodyScore,
-        bmr: profile.bmr,
-        activityLevel: profile.activityLevel,
-        timeline: profile.timeline
-      });
-    }
-  }, [profile]);
-
-  // Update current day and calculate recommendations when userData changes
-  useEffect(() => {
-    setCurrentDay(getDayName());
-    if (userData.bmr > 0) {
-      calculateAndSetRecommendations();
-    }
-  }, [userData]);
-
-  const calculateAndSetRecommendations = () => {
-    if (userData.bmr === 0) return;
-
-    const distribution = calculateDailyCalories(userData);
-    setCalorieDistribution(distribution);
-
-    const lunch = getMealRecommendations(currentDay, 'lunch', distribution.lunchCalories);
-    const dinner = getMealRecommendations(currentDay, 'dinner', distribution.dinnerCalories);
-    
-    setLunchOptions(lunch);
-    setDinnerOptions(dinner);
-
-    // Auto-save profile if valid data
-    if (userData.weight > 0 && userData.targetWeight > 0) {
-      saveProfileMutation.mutate(userData);
-    }
-
-    // Collapse profile after calculation
-    setProfileExpanded(false);
-  };
-
-  const handleSelectMeal = (meal: NutritionItem, mealType: 'lunch' | 'dinner') => {
-    addMealMutation.mutate({
-      userId: MOCK_USER_ID,
-      date: today,
-      mealType,
-      itemName: meal.name,
-      calories: meal.calories,
-      carbs: meal.carbs,
-      protein: meal.protein,
-      fat: meal.fat,
-      fiber: meal.fiber
-    });
-  };
-
+  // Get current day of week
   const getCurrentDay = () => {
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    return days[new Date().getDay()];
+  };
+  
+  const [currentDay, setCurrentDay] = useState(getCurrentDay());
+  
+  // InBody data state
+  const [inBodyData, setInBodyData] = useState<InBodyData>({
+    currentWeight: 0,
+    currentBodyFatPercentage: 0,
+    targetWeight: 0,
+    targetBodyFatPercentage: 0,
+    height: 0,
+    age: 0,
+    gender: 'male',
+    activityLevel: 'moderatelyActive',
+    daysToGoal: 90
+  });
+  
+  // Calculation results
+  const [calorieCalc, setCalorieCalc] = useState<CalorieCalculation | null>(null);
+  const [mealBudgets, setMealBudgets] = useState<MealBudgets | null>(null);
+  const [selectedBreakfast, setSelectedBreakfast] = useState<number>(0);
+  
+  // Load saved data from localStorage
+  useEffect(() => {
+    const savedData = localStorage.getItem('inBodyData');
+    if (savedData) {
+      const parsed = JSON.parse(savedData);
+      setInBodyData(parsed);
+      calculateAndSetRecommendations(parsed);
+    }
+  }, []);
+  
+  // Save data to localStorage
+  const saveData = (data: InBodyData) => {
+    // Create a clean copy to ensure no circular references
+    const cleanData: InBodyData = {
+      currentWeight: data.currentWeight,
+      currentBodyFatPercentage: data.currentBodyFatPercentage,
+      targetWeight: data.targetWeight,
+      targetBodyFatPercentage: data.targetBodyFatPercentage,
+      height: data.height,
+      age: data.age,
+      gender: data.gender,
+      activityLevel: data.activityLevel,
+      daysToGoal: data.daysToGoal,
+      skeletalMuscleMass: data.skeletalMuscleMass,
+      inBodyScore: data.inBodyScore
+    };
+    
+    localStorage.setItem('inBodyData', JSON.stringify(cleanData));
+    localStorage.setItem('startDate', new Date().toISOString());
+  };
+  
+  const calculateAndSetRecommendations = (data: InBodyData = inBodyData) => {
+    if (data.currentWeight === 0 || data.targetWeight === 0 || data.height === 0) return;
+    
+    try {
+      const calc = calculateCalories(data);
+      setCalorieCalc(calc);
+      
+      const budgets = calculateMealBudgets(calc.dailyBudget, selectedBreakfast);
+      setMealBudgets(budgets);
+      
+      // Save to localStorage
+      saveData(data);
+      
+      // Collapse profile after calculation
+      setProfileExpanded(false);
+      
+      toast({
+        title: "Calculations updated",
+        description: `Daily budget: ${calc.dailyBudget} kcal`
+      });
+    } catch (error) {
+      console.error('Error calculating recommendations:', error);
+      toast({
+        title: "Error",
+        description: "Failed to calculate recommendations. Please check your inputs.",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  const handleSelectBreakfast = (calories: number) => {
+    setSelectedBreakfast(calories);
+    if (calorieCalc) {
+      const budgets = calculateMealBudgets(calorieCalc.dailyBudget, calories);
+      setMealBudgets(budgets);
+    }
+  };
+  
+  const getCurrentDayName = () => {
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     return days[new Date().getDay()];
   };
-
-  const showMealPlanning = calorieDistribution.dailyCalories > 0;
-  const showProgressAndCalendar = userData.weight > 0 && userData.targetWeight > 0;
-
+  
+  const showMealPlanning = calorieCalc !== null && mealBudgets !== null;
+  const showProgress = calorieCalc !== null;
+  
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Navigation Header */}
@@ -177,11 +132,11 @@ export default function Home() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                <span className="text-white text-sm">🍽️</span>
+                <span className="text-white text-sm font-bold">NS</span>
               </div>
               <div>
-                <h1 className="text-lg font-medium text-gray-900">NutriTrack</h1>
-                <p className="text-xs text-gray-500">{getCurrentDay()}</p>
+                <h1 className="text-lg font-semibold text-gray-900">NS Nutrition</h1>
+                <p className="text-xs text-gray-500">{getCurrentDayName()}</p>
               </div>
             </div>
             <Button variant="ghost" size="sm" className="p-2 rounded-full hover:bg-gray-100">
@@ -190,76 +145,117 @@ export default function Home() {
           </div>
         </div>
       </nav>
-
+      
       <div className="max-w-md mx-auto px-4">
         {/* Quick Stats - Always visible */}
-        <div className="mt-4">
-          <QuickStats 
-            dailyCalories={calorieDistribution.dailyCalories}
-            remainingCalories={calorieDistribution.remainingCalories}
-          />
-        </div>
-
+        {calorieCalc && mealBudgets && (
+          <div className="mt-4">
+            <QuickStats 
+              dailyCalories={calorieCalc.dailyBudget}
+              remainingCalories={mealBudgets.remaining}
+              breakfastCalories={selectedBreakfast}
+              lunchBudget={mealBudgets.lunch}
+              dinnerBudget={mealBudgets.dinner}
+            />
+          </div>
+        )}
+        
         {/* Tab Content */}
-        {(activeTab === 'home' || activeTab === 'meals') && (
+        {activeTab === 'home' && (
           <>
             {/* Profile Setup */}
             <div className="mt-4">
               <ProfileSetup
-                userData={userData}
-                onUserDataChange={setUserData}
+                inBodyData={inBodyData}
+                onInBodyDataChange={setInBodyData}
                 onCalculate={calculateAndSetRecommendations}
                 isExpanded={profileExpanded}
                 onToggleExpanded={() => setProfileExpanded(!profileExpanded)}
+                calorieCalc={calorieCalc}
               />
             </div>
-
+            
             {/* Meal Planning */}
-            {showMealPlanning && activeTab === 'meals' && (
+            {showMealPlanning && (
               <div className="mt-4">
                 <MealPlanning
-                  calorieDistribution={calorieDistribution}
-                  lunchOptions={lunchOptions}
-                  dinnerOptions={dinnerOptions}
+                  mealBudgets={mealBudgets}
                   currentDay={currentDay}
-                  onSelectMeal={handleSelectMeal}
+                  weeklyMeals={weeklyMeals}
+                  cafeItems={cafeItems}
+                  onSelectBreakfast={handleSelectBreakfast}
+                  selectedBreakfast={selectedBreakfast}
                 />
               </div>
             )}
           </>
         )}
-
-        {/* Progress Tracking */}
-        {activeTab === 'progress' && showProgressAndCalendar && (
-          <div className="mt-4">
-            <ProgressTracking userData={userData} />
-          </div>
-        )}
-
-        {/* Weekly Calendar */}
-        {activeTab === 'calendar' && showProgressAndCalendar && (
-          <div className="mt-4">
-            <WeeklyCalendar 
-              currentDay={currentDay}
-              onDaySelect={setCurrentDay}
-            />
-          </div>
-        )}
-
-        {/* Show meal planning on home tab if calculations are done */}
-        {activeTab === 'home' && showMealPlanning && (
+        
+        {/* Meals Tab */}
+        {activeTab === 'meals' && showMealPlanning && (
           <div className="mt-4">
             <MealPlanning
-              calorieDistribution={calorieDistribution}
-              lunchOptions={lunchOptions}
-              dinnerOptions={dinnerOptions}
+              mealBudgets={mealBudgets}
               currentDay={currentDay}
-              onSelectMeal={handleSelectMeal}
+              weeklyMeals={weeklyMeals}
+              cafeItems={cafeItems}
+              onSelectBreakfast={handleSelectBreakfast}
+              selectedBreakfast={selectedBreakfast}
             />
+          </div>
+        )}
+        
+        {/* Progress Tracking */}
+        {activeTab === 'progress' && showProgress && calorieCalc && (
+          <div className="mt-4">
+            <ProgressTracking 
+              inBodyData={inBodyData}
+              calorieCalc={calorieCalc}
+            />
+          </div>
+        )}
+        
+        {/* Calendar Tab */}
+        {activeTab === 'calendar' && (
+          <div className="mt-4 space-y-4">
+            <div className="bg-white rounded-xl p-4 shadow-sm">
+              <h2 className="text-lg font-semibold mb-3">Weekly View</h2>
+              <div className="grid grid-cols-7 gap-1">
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+                  <div key={i} className="text-center text-xs text-gray-500 font-medium p-2">
+                    {day}
+                  </div>
+                ))}
+                {['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].map((day) => (
+                  <button
+                    key={day}
+                    onClick={() => setCurrentDay(day)}
+                    className={`p-3 rounded-lg text-sm font-medium transition-colors ${
+                      currentDay === day
+                        ? 'bg-primary text-white'
+                        : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    {day.slice(0, 3).toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            {showMealPlanning && (
+              <MealPlanning
+                mealBudgets={mealBudgets}
+                currentDay={currentDay}
+                weeklyMeals={weeklyMeals}
+                cafeItems={cafeItems}
+                onSelectBreakfast={handleSelectBreakfast}
+                selectedBreakfast={selectedBreakfast}
+              />
+            )}
           </div>
         )}
       </div>
-
+      
       {/* Bottom Navigation */}
       <BottomNavigation 
         activeTab={activeTab} 
