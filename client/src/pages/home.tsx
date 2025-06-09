@@ -157,6 +157,11 @@ export default function Home() {
       </nav>
       
       <div className="max-w-md mx-auto px-4">
+        {/* Authentication */}
+        <div className="mt-4">
+          <AuthButton />
+        </div>
+
         {/* Quick Stats - Always visible */}
         {calorieCalc && mealBudgets && (
           <div className="mt-4">
@@ -195,6 +200,7 @@ export default function Home() {
                   cafeItems={cafeItems}
                   onSelectBreakfast={handleSelectBreakfast}
                   selectedBreakfast={selectedBreakfast}
+                  isAuthenticated={isAuthenticated}
                 />
               </div>
             )}
@@ -211,6 +217,7 @@ export default function Home() {
               cafeItems={cafeItems}
               onSelectBreakfast={handleSelectBreakfast}
               selectedBreakfast={selectedBreakfast}
+              isAuthenticated={isAuthenticated}
             />
           </div>
         )}
