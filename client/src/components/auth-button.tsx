@@ -17,7 +17,7 @@ export function AuthButton() {
   const queryClient = useQueryClient();
 
   const { data: user, isLoading } = useQuery({
-    queryKey: ['/api/auth/user'],
+    queryKey: ['/auth/user'],
     retry: false,
   });
 

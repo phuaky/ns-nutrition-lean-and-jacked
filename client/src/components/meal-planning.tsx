@@ -18,6 +18,7 @@ interface MealPlanningProps {
   cafeItems: NutritionItem[];
   onSelectBreakfast: (calories: number) => void;
   selectedBreakfast: number;
+  isAuthenticated?: boolean;
 }
 
 export function MealPlanning({ 
@@ -26,13 +27,73 @@ export function MealPlanning({
   weeklyMeals,
   cafeItems,
   onSelectBreakfast,
-  selectedBreakfast
+  selectedBreakfast,
+  isAuthenticated = false
 }: MealPlanningProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
   const [selectedMeals, setSelectedMeals] = useState<{
     breakfast?: NutritionItem;
     lunch?: { base: NutritionItem; protein: NutritionItem; veggies: NutritionItem };
     dinner?: { base: NutritionItem; protein: NutritionItem; veggies: NutritionItem };
   }>({});
+
+  const addMealMutation = useMutation({
+    mutationFn: async (mealData: {
+      date: string;
+      mealType: string;
+      itemName: string;
+      calories: number;
+      carbs: number;
+      protein: number;
+      fat: number;
+      fiber: number;
+    }) => {
+      const response = await apiRequest('/api/intake', {
+        method: 'POST',
+        data: mealData,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Meal Added",
+        description: "Your meal has been tracked successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/intake'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to track meal",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const trackMeal = (item: NutritionItem, mealType: string) => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Sign In Required",
+        description: "Please sign in with Discord to track your meals.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    addMealMutation.mutate({
+      date: today,
+      mealType,
+      itemName: item.name,
+      calories: item.calories,
+      carbs: item.carbs,
+      protein: item.protein,
+      fat: item.fat,
+      fiber: item.fiber,
+    });
+  };
   
   const todayMeals = weeklyMeals[currentDay] || weeklyMeals.monday;
   
@@ -165,22 +226,46 @@ export function MealPlanning({
                   {filteredBreakfast.map((item, index) => (
                     <div 
                       key={index} 
-                      className={`p-3 rounded-lg border transition-colors cursor-pointer ${
+                      className={`p-3 rounded-lg border transition-colors ${
                         selectedBreakfast === item.calories 
                           ? 'border-yellow-500 bg-yellow-50' 
                           : 'border-gray-200 hover:border-yellow-300'
                       }`}
-                      onClick={() => onSelectBreakfast(item.calories)}
                     >
-                      <div className="flex justify-between items-start">
+                      <div className="flex justify-between items-start mb-2">
                         <h4 className="text-sm font-medium">{item.name}</h4>
                         <span className="text-sm font-bold text-yellow-600">{Math.round(item.calories)} kcal</span>
                       </div>
-                      <div className="grid grid-cols-4 gap-1 mt-2 text-xs text-gray-500">
+                      <div className="grid grid-cols-4 gap-1 mb-3 text-xs text-gray-500">
                         <div>C: {Math.round(item.carbs)}g</div>
                         <div>P: {Math.round(item.protein)}g</div>
                         <div>F: {Math.round(item.fat)}g</div>
                         <div>Fi: {Math.round(item.fiber)}g</div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onSelectBreakfast(item.calories)}
+                          className="flex-1"
+                        >
+                          Select for Budget
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => trackMeal(item, 'breakfast')}
+                          disabled={addMealMutation.isPending}
+                          className="flex-1"
+                        >
+                          {addMealMutation.isPending ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          ) : (
+                            <>
+                              <Plus className="w-3 h-3 mr-1" />
+                              Add to Intake
+                            </>
+                          )}
+                        </Button>
                       </div>
                     </div>
                   ))}

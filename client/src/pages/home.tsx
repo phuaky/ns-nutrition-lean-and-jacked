@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { AuthButton } from "@/components/auth-button";
 import { QuickStats } from "@/components/quick-stats";
 import { ProfileSetup } from "@/components/profile-setup";
 import { MealPlanning } from "@/components/meal-planning";
@@ -20,6 +22,14 @@ export default function Home() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('home');
   const [profileExpanded, setProfileExpanded] = useState(true);
+
+  // Check authentication status
+  const { data: user, isLoading: authLoading } = useQuery({
+    queryKey: ['/auth/user'],
+    retry: false,
+  });
+
+  const isAuthenticated = !!user;
   
   // Get current day of week
   const getCurrentDay = () => {
