@@ -58,6 +58,20 @@ app.use((req, res, next) => {
 
   // Use environment port or find available port
   const port = parseInt(process.env.PORT || "5000");
+  
+  // Handle port conflicts gracefully
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      log(`Port ${port} is busy, trying port ${port + 1}`);
+      const newPort = port + 1;
+      server.listen(newPort, "0.0.0.0", () => {
+        log(`serving on port ${newPort}`);
+      });
+    } else {
+      throw err;
+    }
+  });
+
   server.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);
   });
